@@ -2,10 +2,13 @@ package com.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.entity.Member;
 import com.querydsl.entity.QMember;
 import com.querydsl.entity.QTeam;
 import com.querydsl.entity.Team;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.PersistenceUnit;
 
 import java.util.List;
 
@@ -50,6 +55,185 @@ public class QuerydslBasicTest {
         em.persist(member2);
         em.persist(member3);
         em.persist(member4);
+    }
+
+
+    @PersistenceUnit
+    EntityManagerFactory emf;
+
+
+    @Test
+    public void concat() throws Exception {
+
+        List<String> fetch = queryFactory
+                .select(member.username.concat("_").concat(member.age.stringValue()))
+                .from(member)
+                .fetch();
+
+
+
+        for(String s: fetch){
+            System.out.println("tuple = " +  s );
+        }
+
+    }
+
+    @Test
+    public void 상수더하기() throws Exception {
+
+        List<Tuple> a = queryFactory
+                .select(member.username, Expressions.constant("A"))
+                .from(member)
+                .fetch();
+        for(Tuple s: a){
+            System.out.println("tuple = " + s);
+        }
+
+    }
+
+
+    @Test
+    public void complexCase() throws Exception {
+
+        List<String> ss
+                = queryFactory.select(new CaseBuilder()
+                .when(member.age.between(11, 12)).then("10살")
+                .when(member.age.between(13, 14)).then("12살").otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for(String s: ss){
+            System.out.println("tuple = " + s);
+        }
+    }
+
+    @Test
+    public void casequery() throws Exception {
+
+        List<String> fetch = queryFactory
+                .select(member.age
+                        .when(10).then("열살")
+                        .when(11).then("열한살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+        for(String s: fetch){
+            System.out.println("tuple = " + s);
+        }
+    }
+
+    //from 절의 서브쿼리 한계
+    @Test
+    public void subQuerySelect() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+        queryFactory
+                .select(member.username,
+                        JPAExpressions.select(memberSub.age.avg())
+                        .from(memberSub)
+                        )
+                .from(member)
+                .fetch();
+
+
+    }
+
+    //나이가 평균 보다 큰 회원
+    @Test
+    public void subQueryGoe() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> fetch = queryFactory
+                .selectFrom(member)
+                .where(member.age.goe(
+                        JPAExpressions.select(memberSub.age.avg())
+                                .from(memberSub)
+                ))
+                .fetch();
+    }
+
+    //나이가 가장 많은 회원을 조회
+    @Test
+    public void subQuery() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> fetch = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        JPAExpressions.select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+    }
+
+
+    @Test
+    public void fetchJoin() throws Exception {
+        //given
+        em.flush();
+        em.clear();
+        Member member2 = queryFactory
+                .selectFrom(member)
+                .join(member.team, team).fetchJoin()
+                .where(QMember.member.username.eq("member1"))
+                .fetchOne();
+
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(member2.getTeam());
+        assertThat(loaded).as("페치조인적용").isTrue();
+    }
+
+    @Test
+    public void fetchJoi1() throws Exception {
+        //given
+        em.flush();
+        em.clear();
+        Member member1 = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(member1.getTeam());
+        assertThat(loaded).as("페치조인미적용").isFalse();
+
+
+
+    }
+
+    //연관관계 없는 엔티티를 외부 조인 조회
+    @Test
+    public void join_on_no_relation() throws Exception {
+        em.persist(new Member("teamB"));
+
+        List<Tuple> fetch = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(team).on(member.username.eq(team.name))
+                .fetch();
+
+        for(Tuple tuple: fetch){
+            System.out.println("tuple = " + tuple);
+        }
+
+
+    }
+
+
+
+    //연관관계 없는 엔티티를 조인
+    //회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만, 회원은 모두 조회
+    @Test
+    public void join_on_filtering() throws Exception {
+        //select m,t from member m left join m.team t on t.name = 'teamA'
+
+        List<Tuple> teamA = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team).on(team.name.eq("teamA"))
+                .fetch();
+
+        for(Tuple tuple: teamA){
+            System.out.println("tuple = " + tuple);
+        }
 
 
     }
