@@ -2,8 +2,12 @@ package com.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.dto.MemberDto;
+import com.querydsl.dto.UserDto;
 import com.querydsl.entity.Member;
 import com.querydsl.entity.QMember;
 import com.querydsl.entity.QTeam;
@@ -12,6 +16,7 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -62,6 +67,118 @@ public class QuerydslBasicTest {
     EntityManagerFactory emf;
 
 
+    @DisplayName("user dto조회 생성자 방식")
+    @Test
+    public void findUserDtoByConstruc() throws Exception {
+        List<UserDto> fetch = queryFactory
+                .select(Projections.constructor(UserDto.class,
+
+                        member.username.as("name"),//필드 이름이 다를경우 별칭으로 매칭 가능
+                        member.age
+
+                ))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : fetch) {
+            System.out.println("memberDto = " + userDto);
+        }
+    }
+
+    @DisplayName("user dto조회 ")
+    @Test
+    public void findUserDtoBy() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+        List<UserDto> fetch = queryFactory
+                .select(Projections.fields(UserDto.class,
+                        //member.age,
+                        member.username.as("name"),//필드 이름이 다를경우 별칭으로 매칭 가능
+
+                        ExpressionUtils.as(JPAExpressions
+                        .select(memberSub.age.max())
+                        .from(memberSub),"age")
+                ))
+                .from(member)
+                .fetch();
+
+         for (UserDto userDto : fetch) {
+            System.out.println("memberDto = " + userDto);
+        }
+    }
+
+    @DisplayName("dto조회 생성자 방식")
+    @Test
+    public void findDtoByConstruct() throws Exception {
+        List<MemberDto> fetch = queryFactory
+                .select(Projections.constructor(MemberDto.class, //생성자 파라미터 순서 일치해야한다.
+                        member.age,
+                        member.username))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto:fetch){
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+    @DisplayName("dto조회 필드 방식")
+    @Test
+    public void findDtoByField() throws Exception {
+        List<MemberDto> fetch = queryFactory
+                .select(Projections.fields(MemberDto.class, //필드에 직접 ,@setter(@Data) 필요없음
+                        member.age,
+                        member.username))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto:fetch){
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @DisplayName("dto조회 bean setter 방식")
+    @Test
+    public void findDtoByQueryDSL() throws Exception {
+        List<MemberDto> fetch = queryFactory
+                .select(Projections.bean(MemberDto.class,  //bean setter을 활용한 property 방식,
+                        member.age,
+                        member.username))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto:fetch){
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+
+    //순수 JPA에서 DTO 조회할때 new 명령어를 사용해야한다
+    @Test
+    public void findDtoByJPQL() throws Exception {
+        List<MemberDto> resultList = em.createQuery("select new com.querydsl.dto.MemberDto(m.age,m.username) from Member m", MemberDto.class)
+                .getResultList();
+
+        for(MemberDto memberDto:resultList){
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void tuple1() throws Exception {
+
+        List<Tuple> fetch = queryFactory
+                .select(member.username, member.age)
+                .from(member)
+                .fetch();
+
+        for(Tuple tuple : fetch){ //querldsl 종속적인 관계이기 때문에 repository내에서만 사용 권장 dto반환하여 앞단으로
+            tuple.get(member.username);
+            System.out.println("age = " + tuple.get(member.age));
+        }
+
+    }
+
+
+
     @Test
     public void concat() throws Exception {
 
@@ -69,13 +186,9 @@ public class QuerydslBasicTest {
                 .select(member.username.concat("_").concat(member.age.stringValue()))
                 .from(member)
                 .fetch();
-
-
-
         for(String s: fetch){
             System.out.println("tuple = " +  s );
         }
-
     }
 
     @Test
@@ -88,13 +201,10 @@ public class QuerydslBasicTest {
         for(Tuple s: a){
             System.out.println("tuple = " + s);
         }
-
     }
-
 
     @Test
     public void complexCase() throws Exception {
-
         List<String> ss
                 = queryFactory.select(new CaseBuilder()
                 .when(member.age.between(11, 12)).then("10살")
@@ -109,7 +219,6 @@ public class QuerydslBasicTest {
 
     @Test
     public void casequery() throws Exception {
-
         List<String> fetch = queryFactory
                 .select(member.age
                         .when(10).then("열살")
@@ -134,8 +243,6 @@ public class QuerydslBasicTest {
                         )
                 .from(member)
                 .fetch();
-
-
     }
 
     //나이가 평균 보다 큰 회원
