@@ -1,5 +1,6 @@
 package com.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
@@ -7,6 +8,7 @@ import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.dto.MemberDto;
+import com.querydsl.dto.QMemberDto;
 import com.querydsl.dto.UserDto;
 import com.querydsl.entity.Member;
 import com.querydsl.entity.QMember;
@@ -67,6 +69,49 @@ public class QuerydslBasicTest {
     EntityManagerFactory emf;
 
 
+    //검색조건
+    @Test
+    public void dynamicBooleanBuilder() throws Exception {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember1(usernameParam,ageParam);
+
+
+    }
+
+    private List<Member> searchMember1(String usernameParam, Integer ageParam) {
+        BooleanBuilder builder = new BooleanBuilder();
+        if(usernameParam != null){
+            builder.and(member.username.eq(usernameParam));
+        }
+        if(ageParam !=null){
+            builder.and(member.age.eq(ageParam));
+        }
+
+        List<Member> fetch = queryFactory
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+        return fetch;
+    }
+
+    @Test
+    public void queryProjection() throws Exception {
+        List<MemberDto> fetch = queryFactory
+                .select(new QMemberDto(member.age, member.username)) //생성자방식과 다르게 컴파일 에러 가능
+                .from(member)
+                .fetch();
+        for (MemberDto memberDto : fetch) {
+            System.out.println("memberDto = " + memberDto);
+        }
+
+
+        //service controller 여러 레이어에서 사용하는 dto가 querydsl 의존성을 갖게된다
+
+    }
+
+
     @DisplayName("user dto조회 생성자 방식")
     @Test
     public void findUserDtoByConstruc() throws Exception {
@@ -75,6 +120,7 @@ public class QuerydslBasicTest {
 
                         member.username.as("name"),//필드 이름이 다를경우 별칭으로 매칭 가능
                         member.age
+
 
                 ))
                 .from(member)
@@ -164,7 +210,6 @@ public class QuerydslBasicTest {
 
     @Test
     public void tuple1() throws Exception {
-
         List<Tuple> fetch = queryFactory
                 .select(member.username, member.age)
                 .from(member)
@@ -174,14 +219,10 @@ public class QuerydslBasicTest {
             tuple.get(member.username);
             System.out.println("age = " + tuple.get(member.age));
         }
-
     }
-
-
 
     @Test
     public void concat() throws Exception {
-
         List<String> fetch = queryFactory
                 .select(member.username.concat("_").concat(member.age.stringValue()))
                 .from(member)
@@ -193,7 +234,6 @@ public class QuerydslBasicTest {
 
     @Test
     public void 상수더하기() throws Exception {
-
         List<Tuple> a = queryFactory
                 .select(member.username, Expressions.constant("A"))
                 .from(member)
