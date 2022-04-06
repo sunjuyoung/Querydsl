@@ -4,7 +4,9 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.dto.MemberDto;
@@ -69,6 +71,83 @@ public class QuerydslBasicTest {
     EntityManagerFactory emf;
 
 
+    @Test
+    public void sqlFunction() throws Exception {
+        List<String> result = queryFactory
+                .select(Expressions.stringTemplate("function('replace',{0},{1},{2})"
+                        , member.username, "member","M"))
+                .from(member)
+                .fetch();
+
+        for(String r : result){
+            System.out.println("s  = "+r);
+        }
+
+    }
+
+    @Test
+    public void bulkDelete() throws Exception {
+        queryFactory
+                .delete(member)
+                .where(member.age.gt(13))
+                .execute();
+    }
+
+
+    @Test
+    public void bulkAdd() throws Exception {
+        //모든 회원 나이 1 더하기
+      queryFactory
+              .update(member)
+              .set(member.age,member.age.add(1))// 곱하기 multiply
+              .execute();
+    }
+
+    @Test
+    public void bulkUpdate() throws Exception {
+        //bulkupdate는 영속성컨텍스 상관없이 db에 바로 적용된다 -> 영속성컨텍스트 db불일치 주의
+        //조회시 영속성컨텍스트에 우선 참조
+         queryFactory
+                .update(member)
+                .set(member.username,"비회원")
+                .where(member.age.lt(13))
+                .execute();
+    }
+
+    @Test
+    public void dynamicQuery_where() throws Exception {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam,ageParam);
+
+    }
+
+    private List<Member> searchMember2(String usernameParam, Integer ageParam) {
+        List<Member> fetch = queryFactory
+                .selectFrom(member)
+                .where(usernameEq(usernameParam),ageEq(ageParam))
+                //.where(allEq(ageParam,usernameParam)) //조립가능
+                .fetch();
+        return fetch;
+    }
+
+    private BooleanExpression ageEq(Integer ageParam) {
+        return ageParam == null ? null : member.age.eq(ageParam);
+    }
+
+    private BooleanExpression usernameEq(String usernameParam) {
+        if(usernameParam !=null){
+            return member.username.eq(usernameParam);
+        }else{
+            return null;
+        }
+    }
+    //조립 가능
+    private BooleanExpression allEq(Integer ageParam,String username) {
+       return usernameEq(username).and(ageEq(ageParam));
+    }
+
     //검색조건
     @Test
     public void dynamicBooleanBuilder() throws Exception {
@@ -76,8 +155,6 @@ public class QuerydslBasicTest {
         Integer ageParam = 10;
 
         List<Member> result = searchMember1(usernameParam,ageParam);
-
-
     }
 
     private List<Member> searchMember1(String usernameParam, Integer ageParam) {
