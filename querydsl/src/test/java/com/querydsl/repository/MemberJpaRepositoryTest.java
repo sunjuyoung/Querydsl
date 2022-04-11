@@ -10,6 +10,8 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
@@ -24,17 +26,19 @@ class MemberJpaRepositoryTest {
     @Autowired
     MemberJpaRepository memberJpaRepository;
 
+    @Autowired
+    MemberRepository memberRepository;
+
     @Test
     public void basicTest() throws Exception {
         Member member = new Member("member1", 10);
-        memberJpaRepository.save(member);
-        Member member1 = memberJpaRepository.findById(member.getId()).get();
+        memberRepository.save(member);
+        Member member1 = memberRepository.findById(member.getId()).get();
 
         Assertions.assertThat(member).isEqualTo(member1);
 
-        List<Member> result1 = memberJpaRepository.findAll();
-        List<Member> byUsername = memberJpaRepository.findByUsername(member.getUsername());
-
+        List<Member> result1 = memberRepository.findAll();
+        List<Member> byUsername = memberRepository.findByUsername(member.getUsername());
     }
 
     @Test
@@ -63,9 +67,34 @@ class MemberJpaRepositoryTest {
         
 
        // List<MemberTeamDto> result = memberJpaRepository.searchByBuilder(condition);
-        List<MemberTeamDto> result = memberJpaRepository.search(condition);
+        //List<MemberTeamDto> result = memberJpaRepository.search(condition);
+        List<MemberTeamDto> result = memberRepository.search(condition);
         Assertions.assertThat(result).extracting("username").containsExactly("member4");
+    }
 
+    @Test
+    public void searchPageTest() throws Exception {
+        Team teamA = new Team("teamA");
+        Team teamB = new Team("teamB");
+
+        em.persist(teamA);
+        em.persist(teamB);
+
+        Member member1 = new Member("member1",10,teamA);
+        Member member2 = new Member("member2",11,teamB);
+
+        Member member3 = new Member("member3",13,teamA);
+        Member member4 = new Member("member4",14,teamB);
+        em.persist(member1);
+        em.persist(member2);
+        em.persist(member3);
+        em.persist(member4);
+
+        MemberSearchCondition condition = new MemberSearchCondition();
+        PageRequest pageRequest = PageRequest.of(0,3);
+
+        Page<MemberTeamDto> result = memberRepository.searchPageSimple(condition,pageRequest);
+        // Assertions.assertThat(result).extracting("username").containsExactly("member4");
 
     }
 
